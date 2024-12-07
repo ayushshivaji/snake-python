@@ -1,1 +1,4 @@
 snake-venv/*
+build/*
+web/*
+web-cache/*
