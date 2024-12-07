@@ -1,6 +1,8 @@
 import random
+import sys
 import pygame
 from enum import Enum
+import time
 
 class Misc(Enum):
     screen_length = 1000
@@ -15,7 +17,7 @@ class Snake_Board:
 
     def food_on_board(self):
         for i in self.current_state:
-            if sum(i) > 0:
+            if 1 in i:
                 return True
         return False
 
@@ -25,6 +27,7 @@ class Snake:
         self.SCREEN = kwargs.get("screen")
         self.snake_body = [(5, 5), (5, 6), (5, 7)]
         self.snake_head_direction = self.initial_direction
+        self.snake_board = kwargs.get("snake_board")
 
     def get_snake_head(self):
         return self.snake_body[0]
@@ -34,10 +37,12 @@ class Snake:
             self.snake_body[0][0] < 0 or \
             self.snake_body[0][1] > 9 or \
             self.snake_body[0][1] < 0:
+            print("You collided with the wall")
             return True
 
         for i in range(1, len(self.snake_body)):
             if self.snake_body[i] == self.snake_body[0]:
+                print("You collided with yourself")
                 return True
         return False
 
@@ -45,22 +50,31 @@ class Snake:
         for coords in self.snake_body:
             snake_board.current_state[coords[0]][coords[1]] = value
 
-    def move(self, snake_board, next_move):
-        self.update_snake_board(snake_board) 
-        if self.snake_head_direction == "N":
+    def move(self, next_move, snake_head_direction):
+        if next_move == '':
+            next_move = snake_head_direction
+        #     time.sleep(2)
+        #     return False
+        # print("next move", next_move)
+        self.update_snake_board(self.snake_board) 
+        if next_move == "N":
             new_head = (self.snake_body[0][0] - 1, self.snake_body[0][1])
-        elif self.snake_head_direction == "S":
+        elif next_move == "S":
             new_head = (self.snake_body[0][0] + 1, self.snake_body[0][1])
-        elif self.snake_head_direction == "E":
+        elif next_move == "E":
             new_head = (self.snake_body[0][0], self.snake_body[0][1] + 1)
-        elif self.snake_head_direction == "W":
+        elif next_move == "W":
             new_head = (self.snake_body[0][0], self.snake_body[0][1] - 1)
-        if self.valid_new_head(new_head) and snake_board.current_state[new_head[0]][new_head[1]] == 0:
+
+        self.snake_head_direction = next_move
+
+        if self.valid_new_head(new_head) and self.snake_board.current_state[new_head[0]][new_head[1]] == 0:
             self.snake_body.pop()
-        elif self.valid_new_head(new_head):
-            snake_board.current_state[new_head[0]][new_head[1]] = 0
+        elif self.valid_new_head(new_head) and self.snake_board.current_state[new_head[0]][new_head[1]] == 1:
+            self.snake_board.current_state[new_head[0]][new_head[1]] = 0
+            print("food eaten")
         self.snake_body.insert(0, new_head)
-        self.update_snake_board(snake_board, 2)
+        self.update_snake_board(self.snake_board, 2)
         is_game_over = self.check_collision()
         return is_game_over
 
@@ -77,34 +91,58 @@ class Snake:
 
     def render(self, **kwargs):
         snake_board = kwargs.get("snake_board")
-        # for i in snake_board.current_state:
-        #     print(i)
-        # print()
+        snake = kwargs.get("snake")
+        food = kwargs.get("food")
 
         pygame.init()
-        
-        # Set up display
-        snake_board.SCREEN = screen.set_caption("Snake-Game")
-        
-        # Calculate the size of each block
         block_size = 1000 // snake_board.length
+        is_game_over = False
         
         # Run until the user closes the window
         running = True
-        while running:
+        while running and not is_game_over:
+
+            # print(self.snake_board.current_state)
+            if (not self.snake_board.food_on_board()):
+                print("generating new food")
+                food_location_x, food_location_y = food.randomizer()
+                self.snake_board.current_state[food_location_x][food_location_y] = 1
+
+            input_direction = ''
             for event in pygame.event.get():
+                # print(event.unicode)
                 if event.type == pygame.QUIT:
                     running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_UP:
+                        print("UP")
+                        input_direction = "N"
+                    elif event.key == pygame.K_DOWN:
+                        print("DOWN")
+                        input_direction = "S"
+                    elif event.key == pygame.K_RIGHT:
+                        print("RIGHT")
+                        input_direction = "E"
+                    elif event.key == pygame.K_LEFT:
+                        print("LEFT")
+                        input_direction = "W"
             
-            # Draw the chessboard
-            for row in range(num_blocks):
-                for col in range(num_blocks):
+            is_game_over = snake.move(input_direction, self.snake_head_direction)
+            # draw the snake board
+            for row in range(len(snake_board.current_state)):
+                for col in range(len(snake_board.current_state[0])):
                     # Alternate colors
-                    color = (0, 0, 0) if (row + col) % 2 == 0 else (255, 255, 255)
-                    pygame.draw.rect(screen, color, (col * block_size, row * block_size, block_size, block_size))
+                    if snake_board.current_state[row][col] == 1:
+                        color = (255, 0, 0)
+                    elif snake_board.current_state[row][col] == 2:
+                        color = (0, 255, 0)
+                    else:
+                        color = (0, 0, 0)
+                    pygame.draw.rect(snake_board.SCREEN, color, (col * block_size, row * block_size, block_size, block_size))
             
             # Update the display
             pygame.display.flip()
+            time.sleep(1)
         
         # Quit pygame
         pygame.quit()
@@ -128,7 +166,7 @@ class Snake_game:
     def __init__(self):
         snake_board_kwargs = {"length": 10, "width": 10, "screen": pygame.display.set_mode((1000, 1000))}
         self.snake_board = Snake_Board(**snake_board_kwargs)
-        self.snake = Snake(initial_direction = "N")
+        self.snake = Snake(initial_direction = "N", snake_board = self.snake_board)
         self.food = Food()
         self.is_game_over = False
 
@@ -141,9 +179,9 @@ class Snake_game:
                 food_location_x, food_location_y = self.food.randomizer()
                 print("food location", food_location_x, food_location_y)
                 self.snake_board.current_state[food_location_x][food_location_y] = 1
-            self.is_game_over = self.snake.move(self.snake_board, input_direction)
+            # self.is_game_over = self.snake.move(input_direction)
             # print("Moved one block")
-            self.snake.render(snake_board = self.snake_board)
+            self.snake.render(snake_board = self.snake_board, snake=self.snake, food=self.food)
             # print("snake body", self.snake.snake_body)
             # print("game over", self.is_game_over)
 
